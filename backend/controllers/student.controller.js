@@ -341,3 +341,55 @@ exports.getActivities = (req, res) => {
     });
   });
 };
+
+// GET /student/class-members/:subjectId
+// Fetch all students (including current user) enrolled in a specific class
+exports.getClassMembers = (req, res) => {
+  const db = require('../config/db');
+  const studentId = req.userId;
+  const { subjectId } = req.params;
+
+  if (!subjectId) {
+    return res.status(400).json({ message: "Subject ID is required." });
+  }
+
+  // Verify student is enrolled in this subject
+  const verifySql = `
+    SELECT ss.id FROM student_subjects ss 
+    WHERE ss.student_id = ? AND ss.subject_id = ?
+  `;
+
+  db.query(verifySql, [studentId, subjectId], (verifyErr, verifyResults) => {
+    if (verifyErr) {
+      console.error("Error verifying enrollment:", verifyErr);
+      return res.status(500).json({ message: "Database error." });
+    }
+
+    if (verifyResults.length === 0) {
+      return res.status(403).json({ message: "You are not enrolled in this class." });
+    }
+
+    // Fetch all students enrolled in this subject
+    const studentsSql = `
+      SELECT u.user_id, u.username, u.email, u.role_id, ss.joined_at
+      FROM users u
+      INNER JOIN student_subjects ss ON u.user_id = ss.student_id
+      WHERE u.role_id = 3 AND ss.subject_id = ?
+      ORDER BY ss.joined_at DESC
+    `;
+
+    db.query(studentsSql, [subjectId], (studentsErr, studentsRows) => {
+      if (studentsErr) {
+        console.error("Error fetching class members:", studentsErr);
+        return res.status(500).json({ message: "Failed to fetch class members." });
+      }
+
+      res.json({
+        message: "Class members retrieved successfully.",
+        count: studentsRows.length,
+        members: studentsRows || [],
+      });
+    });
+  });
+};
+

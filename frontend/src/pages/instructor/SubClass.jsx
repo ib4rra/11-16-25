@@ -21,6 +21,7 @@ function SubClass() {
   );
   const [announcements, setAnnouncements] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [students, setStudents] = useState([]);
   const [isEditingActivity, setIsEditingActivity] = useState(false);
   const [editingActivityData, setEditingActivityData] = useState(null);
   const [isPosting, setIsPosting] = useState(false);
@@ -123,6 +124,7 @@ function SubClass() {
     if (subjectData || classInfo.subject_id || classInfo.id) {
       fetchAnnouncements();
       fetchActivities();
+      fetchStudents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subjectData, classInfo.subject_id, classInfo.id]);
@@ -316,6 +318,32 @@ function SubClass() {
       }
     } catch (error) {
       console.error("Error fetching activities:", error);
+    }
+  };
+
+  const fetchStudents = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const subjectId = classInfo.subject_id || classInfo.id;
+    if (!subjectId) return;
+
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/instructor/subjects/${subjectId}/students`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (response.data && Array.isArray(response.data.students)) {
+        setStudents(response.data.students);
+      } else {
+        setStudents([]);
+      }
+    } catch (error) {
+      console.error("Error fetching students:", error);
+      setStudents([]);
     }
   };
 
@@ -744,21 +772,33 @@ function SubClass() {
         />
 
         <main className="flex-1 px-6 sm:px-10 py-10 mt-12 space-y-10">
+          {/* Back to Classes Button - Left Side */}
+          <div>
+            <button
+              onClick={() =>
+                navigate("/instructor/dashboard", {
+                  state: { newClass: classInfo },
+                })
+              }
+              className="text-sm font-medium text-blue-600 hover:text-blue-700 mb-6"
+            >
+              ← Back to classes
+            </button>
+          </div>
+
+          {/* Welcome Message - Centered */}
+          <div className="flex flex-col items-center justify-center text-center">
+            <h1 className="text-4xl font-bold text-gray-800 mb-2">
+              Welcome, Prof. <span className="text-blue-600">{instructorName}</span>!
+            </h1>
+          </div>
+
+          {/* Class Info and Actions */}
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <button
-                onClick={() =>
-                  navigate("/instructor/dashboard", {
-                    state: { newClass: classInfo },
-                  })
-                }
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
-              >
-                ← Back to classes
-              </button>
-              <h1 className="mt-4 text-3xl font-semibold text-gray-800">
+              <h2 className="text-3xl font-semibold text-gray-800">
                 {classInfo.className}
-              </h1>
+              </h2>
               <p className="text-gray-500">
                 {classInfo.section || classInfo.description || "No description"}
               </p>
@@ -884,8 +924,52 @@ function SubClass() {
 
           {activeTab === "people" && (
             <section className="rounded-3xl bg-white shadow-lg border border-white/60 px-6 py-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Class People</h3>
-              <p className="text-gray-500">View roster details, manage roles, and communicate with your students seamlessly.</p>
+              <h3 className="text-lg font-semibold text-gray-800 mb-6">Class People</h3>
+              
+              {students.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600 mb-4">
+                    <span className="font-semibold text-gray-700">{students.length}</span> student{students.length !== 1 ? 's' : ''} enrolled
+                  </div>
+                  <div className="grid gap-3">
+                    {students.map((student) => (
+                      <div
+                        key={student.user_id}
+                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                            {student.username.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {student.username}
+                            </p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {student.email}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                            Student
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Joined {new Date(student.joined_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-2">No students enrolled yet</p>
+                  <p className="text-sm text-gray-400">
+                    Students will appear here once they join your class using the class code
+                  </p>
+                </div>
+              )}
             </section>
           )}
 

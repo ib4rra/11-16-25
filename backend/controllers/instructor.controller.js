@@ -337,6 +337,58 @@ exports.getArchivedSubjects = async (req, res) => {
   });
 };
 
+// ---------------------------CLASS PEOPLE/STUDENTS-------------------- //
+// GET /instructor/subjects/:subjectId/students
+// Fetch all students (role_id = 3) enrolled in a specific class
+exports.getStudentsBySubject = async (req, res) => {
+  try {
+    const instructorId = req.userId;
+    const { subjectId } = req.params;
+
+    if (!subjectId) {
+      return res.status(400).json({ message: "Subject ID is required." });
+    }
+
+    // Verify the subject belongs to the instructor
+    const subjectSql = `SELECT subject_id FROM subjects WHERE subject_id = ? AND instructor_id = ?`;
+    db.query(subjectSql, [subjectId, instructorId], (subjectErr, subjectRows) => {
+      if (subjectErr) {
+        console.error("Error verifying subject:", subjectErr);
+        return res.status(500).json({ message: "Database error." });
+      }
+
+      if (subjectRows.length === 0) {
+        return res.status(404).json({ message: "Subject not found or access denied." });
+      }
+
+      // Fetch all students (role_id = 3) enrolled in this subject
+      const studentsSql = `
+        SELECT u.user_id, u.username, u.email, u.role_id, ss.joined_at
+        FROM users u
+        INNER JOIN student_subjects ss ON u.user_id = ss.student_id
+        WHERE u.role_id = 3 AND ss.subject_id = ?
+        ORDER BY ss.joined_at DESC
+      `;
+
+      db.query(studentsSql, [subjectId], (studentsErr, studentsRows) => {
+        if (studentsErr) {
+          console.error("Error fetching students:", studentsErr);
+          return res.status(500).json({ message: "Failed to fetch students." });
+        }
+
+        res.json({
+          message: "Students retrieved successfully.",
+          count: studentsRows.length,
+          students: studentsRows || [],
+        });
+      });
+    });
+  } catch (error) {
+    console.error("getStudentsBySubject error:", error);
+    return res.status(500).json({ message: "Server error.", error });
+  }
+};
+
 // ---------------------------ANNOUNCEMENT-------------------- //
 /**
  * helper to wrap mysql2 callback API in a promise

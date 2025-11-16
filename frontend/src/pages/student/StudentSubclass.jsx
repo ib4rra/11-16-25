@@ -17,6 +17,7 @@ function StudentSubclass() {
   const [activeTab, setActiveTab] = useState(() => location.state?.initialTab || 'newsfeed');
   const [announcements, setAnnouncements] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [members, setMembers] = useState([]);
   const API_BASE_URL = "http://localhost:5000";
 
   const getAttachmentIcon = (mimeType) => {
@@ -35,28 +36,38 @@ function StudentSubclass() {
   };
 
   const classInfo = useMemo(() => {
-    const defaults = {
-      id: Date.now(),
-      className: location.state?.classData?.title || 'Untitled Class',
-      section: location.state?.classData?.description || 'Section details',
-      code: location.state?.classData?.class_code || (Math.random().toString(36).slice(2,8)).toUpperCase(),
-    };
-
+    // Priority: subjectData > location.state.classData > defaults
     if (subjectData) {
       return {
-        ...defaults,
         subject_id: subjectData.subject_id,
         instructor_id: subjectData.instructor_id,
-        title: subjectData.title || defaults.className,
-        className: subjectData.title || defaults.className,
-        description: subjectData.description || defaults.section,
-        class_code: subjectData.class_code || defaults.code,
-        code: subjectData.class_code || defaults.code,
+        className: subjectData.title || 'Untitled Class',
+        description: subjectData.description || 'Section details',
+        code: subjectData.class_code || '',
+        class_code: subjectData.class_code || '',
         created_at: subjectData.created_at,
       };
     }
+    // Fallback to location state
+    if (location.state?.classData) {
+      return {
+        subject_id: location.state.classData.subject_id,
+        instructor_id: location.state.classData.instructor_id,
+        className: location.state.classData.title || 'Untitled Class',
+        description: location.state.classData.description || 'Section details',
+        code: location.state.classData.class_code || '',
+        class_code: location.state.classData.class_code || '',
+        created_at: location.state.classData.created_at,
+      };
+    }
 
-    return defaults;
+    // Final fallback
+    return {
+      className: 'Untitled Class',
+      description: 'Section details',
+      code: '',
+      class_code: '',
+    };
   }, [location.state, subjectData]);
 
   useEffect(() => {
@@ -67,22 +78,35 @@ function StudentSubclass() {
     }
 
     const fetchSubject = async () => {
-      // If we already have classData in location.state, don't fetch
+      // If we don't have subjectData yet, fetch it
       if (subjectData) return;
 
       try {
         setLoading(true);
+        let url;
+        
         if (params.id) {
-          const res = await axios.get(`http://localhost:5000/student/subjects/${params.id}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          setSubjectData(res.data.subject);
+          url = `http://localhost:5000/student/subjects/${params.id}`;
+        } else if (location.state?.classData?.subject_id) {
+          url = `http://localhost:5000/student/subjects/${location.state.classData.subject_id}`;
         } else if (location.state?.classData?.class_code) {
-          const res = await axios.get(
-            `http://localhost:5000/student/subjects?class_code=${location.state.classData.class_code}`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
+          url = `http://localhost:5000/student/subjects?class_code=${location.state.classData.class_code}`;
+        }
+
+        if (!url) {
+          console.log("No subject ID or class code available");
+          setLoading(false);
+          return;
+        }
+
+        const res = await axios.get(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        
+        if (res.data?.subject) {
           setSubjectData(res.data.subject);
+        } else {
+          console.error("No subject data returned");
         }
       } catch (err) {
         console.error("Error fetching subject:", err);
@@ -116,6 +140,32 @@ function StudentSubclass() {
 
     fetchAnnouncements();
   }, [subjectData, classInfo.subject_id, classInfo.id]);
+
+  // fetch class members (exposed so we can call it on tab click or manual refresh)
+  const fetchMembers = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const subjectId = classInfo.subject_id || classInfo.id;
+    if (!subjectId) return;
+
+    try {
+      const res = await axios.get(`${API_BASE_URL}/student/subjects/${subjectId}/members`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMembers(res.data?.members || []);
+    } catch (err) {
+      console.error('Error fetching class members:', err);
+      setMembers([]);
+    }
+  };
+
+  // Fetch members when student opens the Class People tab
+  useEffect(() => {
+    if (activeTab === 'people' && (subjectData || classInfo.subject_id || classInfo.id)) {
+      fetchMembers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, subjectData, classInfo.subject_id, classInfo.id]);
 
   // fetch activities for students when classwork tab selected
   useEffect(() => {
@@ -198,14 +248,7 @@ function StudentSubclass() {
               <h1 className="mt-4 text-3xl font-semibold text-gray-800">{classInfo.className}</h1>
               <p className="text-gray-500">{classInfo.description}</p>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={handleCopyInviteLink}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow hover:bg-blue-700 transition"
-              >
-                Share invite
-              </button>
-            </div>
+
           </div>
 
           <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#2d7bf3] via-[#37b0ff] to-[#8adFFF] text-white shadow-xl">
@@ -217,20 +260,10 @@ function StudentSubclass() {
             </div>
             <div className="relative z-10 p-8 lg:p-12 flex flex-col gap-8">
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
-                <div>
+              <div>
                   <p className="uppercase tracking-[0.25em] text-white/80 text-xs">stream overview</p>
                   <h2 className="mt-3 text-3xl font-semibold leading-snug">Start the conversation and keep your class aligned</h2>
                   <p className="mt-3 text-white/80 text-sm max-w-2xl">Announcements posted here appear for everyone instantly. Pin key updates, schedule reminders, or share quick resources to set the tone for your course.</p>
-                </div>
-                <div className="bg-white/15 rounded-3xl p-6 w-full sm:w-auto sm:min-w-[220px]">
-                  <p className="text-white/70 uppercase tracking-wide text-xs">class code</p>
-                  <p className="mt-3 text-3xl font-semibold tracking-[0.35em]">{classInfo.code}</p>
-                  <button
-                    onClick={handleCopyCode}
-                    className={`mt-6 w-full rounded-xl py-2 text-sm font-medium transition ${copiedCode ? 'bg-green-500/30 text-white' : 'bg-white/20 hover:bg-white/30'}`}
-                  >
-                    {copiedCode ? 'Copied!' : 'Copy code'}
-                  </button>
                 </div>
               </div>
             </div>
@@ -371,6 +404,64 @@ function StudentSubclass() {
               )}
             </section>
           )}
+           {activeTab === 'people' && (
+             <section className="rounded-3xl bg-white shadow-lg border border-white/60 px-6 py-6">
+               <div className="flex items-center justify-between mb-6">
+                 <h3 className="text-lg font-semibold text-gray-800">Class People</h3>
+                 <button
+                   onClick={fetchMembers}
+                   className="ml-3 px-3 py-1 rounded-md bg-gray-100 text-gray-700 text-sm hover:bg-gray-200"
+                 >
+                   Refresh
+                 </button>
+               </div>
+             
+               {members.length > 0 ? (
+                 <div className="space-y-3">
+                   <div className="text-sm text-gray-600 mb-4">
+                     <span className="font-semibold text-gray-700">{members.length}</span> student{members.length !== 1 ? 's' : ''} enrolled
+                   </div>
+                   <div className="grid gap-3">
+                     {members.map((member) => (
+                       <div
+                         key={member.user_id}
+                         className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                       >
+                         <div className="flex items-center gap-4">
+                           <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
+                             {member.username.charAt(0).toUpperCase()}
+                           </div>
+                           <div className="flex-1 min-w-0">
+                             <p className="text-sm font-semibold text-gray-800 truncate">
+                               {member.username}
+                             </p>
+                             <p className="text-xs text-gray-500 truncate">
+                               {member.email}
+                             </p>
+                           </div>
+                         </div>
+                         <div className="flex items-center gap-3">
+                           <span className="inline-flex px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                             Student
+                           </span>
+                           <span className="text-xs text-gray-500">
+                             Joined {new Date(member.joined_at).toLocaleDateString()}
+                           </span>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </div>
+               ) : (
+                 <div className="text-center py-8">
+                   <p className="text-gray-500 mb-2">No students enrolled yet</p>
+                   <p className="text-sm text-gray-400">
+                     You will see other students here once they join the class
+                   </p>
+                 </div>
+               )}
+             </section>
+           )}
         </main>
       </div>
     </div>

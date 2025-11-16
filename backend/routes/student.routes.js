@@ -12,6 +12,7 @@ router.get('/setting', verifyToken, authorizeRoles([3]), StudentController.getSe
 router.get('/active-classes', verifyToken, authorizeRoles([3]), StudentController.getActiveClasses);
 router.get('/subjects', verifyToken, authorizeRoles([3]), StudentController.getSubject);
 router.get('/subjects/:subjectId', verifyToken, authorizeRoles([3]), StudentController.getSubject);
+router.get('/subjects/:subjectId/members', verifyToken, authorizeRoles([3]), StudentController.getClassMembers);
 router.post('/join-class', verifyToken, authorizeRoles([3]), StudentController.joinClass);
 router.post('/leave-class', verifyToken, authorizeRoles([3]), StudentController.leaveClass);
 router.get('/announcements', verifyToken, authorizeRoles([3]), StudentController.getAnnouncements);

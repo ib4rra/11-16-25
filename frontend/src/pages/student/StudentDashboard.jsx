@@ -294,9 +294,9 @@ function StudentDashboard() {
                       {cls.description || "No description available."}
                     </p>
 
-                    {cls.class_code && (
+                    {cls.instructor_name && (
                       <p className="text-xs text-gray-500">
-                        Code: <span className="font-medium">{cls.class_code}</span>
+                        Instructor: <span className="font-medium">{cls.instructor_name}</span>
                       </p>
                     )}
                     {/* Burger menu (lower-right) */}

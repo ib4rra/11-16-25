@@ -88,6 +88,7 @@ router.post("/classes", verifyToken, authorizeRoles([2]), InstructorController.c
 router.get("/subjects", verifyToken, authorizeRoles([2]), InstructorController.getSubject);
 router.get("/subjects/:subjectId", verifyToken, authorizeRoles([2]), InstructorController.getSubject);
 router.get("/subjects/:subjectId/activities", verifyToken, authorizeRoles([2]), InstructorController.getActivitiesBySubject);
+router.get("/subjects/:subjectId/students", verifyToken, authorizeRoles([2]), InstructorController.getStudentsBySubject);
 router.put("/subjects/:subjectId", verifyToken, authorizeRoles([2]), InstructorController.updateSubject);
 
 router.get("/archived", verifyToken, authorizeRoles([2]), InstructorController.getArchivedSubjects);
